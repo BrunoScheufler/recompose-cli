@@ -33,8 +33,15 @@ const handleError = (err: Error) => {
 			onlyFiles: true
 		});
 
+		if (process.env.DEBUG_RECOMPOSE) {
+			console.log(`Found ${composeFiles.length} compose files!`);
+			composeFiles.forEach((file, index) =>
+				console.log(`${index + 1}. ${file}`)
+			);
+		}
+
 		// Execute docker-compose
-		const { code, stderr, stdout, signal } = await execa(
+		const composeProcess = execa(
 			'docker-compose',
 			[...composeFiles.map(f => `-f ${f}`), ...process.argv.slice(2)],
 			{
@@ -42,21 +49,31 @@ const handleError = (err: Error) => {
 			}
 		);
 
-		// Return output and handle potential errors
-		console.log(stdout);
-		console.error(stderr);
+		// Pipe recompose stdin to compose process
+		process.stdin.pipe(composeProcess.stdin);
 
-		if (signal) {
-			console.log(`Received signal ${signal}`);
-			process.exit(1);
-			return;
-		}
+		// Pipe compose process output back to recompose streams
+		composeProcess.stdout.pipe(process.stdout);
+		composeProcess.stderr.pipe(process.stderr);
 
-		if (code !== 0) {
-			console.log(`Exited with ${code}`);
-			process.exit(code);
-			return;
-		}
+		composeProcess.on('error', handleError);
+
+		// Handle child process exit
+		composeProcess.on('exit', (code, signal) => {
+			if (signal) {
+				console.log(`Received signal ${signal}`);
+				process.exit(1);
+				return;
+			}
+
+			if (code !== 0) {
+				console.log(`Exited with ${code}`);
+				process.exit(code);
+				return;
+			}
+
+			process.exit(0);
+		});
 	} catch (err) {
 		handleError(err);
 	}
