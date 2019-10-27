@@ -38,6 +38,6 @@
 	"dependencies": {
 		"configstore": "4.0.0",
 		"execa": "1.0.0",
-		"globby": "8.0.1"
+		"globby": "10.0.1"
 	}
 }
